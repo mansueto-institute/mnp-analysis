@@ -1,7 +1,6 @@
 #!/bin/bash
 
-/project2/bettencourt/mnp/prclz/data/complexity
-
+cd /project2/bettencourt/mnp/prclz/data/complexity
 
 # https://unix.stackexchange.com/a/260636
 total=0
