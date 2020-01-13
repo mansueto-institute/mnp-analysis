@@ -7,9 +7,9 @@ total=0
 files=0
 find . -type f -name "*.csv" | while read FILE; do 
   count=$(grep -c ^ < "$FILE")
-  let total=total+count
-  let files=files+1
-  echo $files
+  total=$((total+count))
+  files=$((files+1))
+  echo ${files} ${total}
 done 
 net_blocks=$((total-files)) # adjust for headers
 echo "num GADMs : ${files}"
