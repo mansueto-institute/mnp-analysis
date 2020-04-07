@@ -3,6 +3,7 @@ from pathlib import Path
 import geopandas as gpd
 import mapclassify
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
 import shapely.wkt
@@ -131,7 +132,7 @@ def visualize_building_counts(dg: gpd.GeoDataFrame, osm: gpd.GeoDataFrame):
     # get block-by-block diff of k values
     diff = dg.join(osm, rsuffix="_osm")
     diff["delta_n"] = diff["num_buildings"] - diff["num_buildings_osm"]
-    diff.plot("delta_n", legend=True, cmap="PRGn", scheme = "natural_breaks", missing_kwds={"color": "lightgrey"})
+    diff.plot("delta_n", legend=True)#, cmap="PRGn", scheme = "natural_breaks", missing_kwds={"color": "lightgrey"})
     plt.gca().get_xaxis().set_visible(False)
     plt.gca().axes.get_yaxis().set_visible(False)
     plt.title(r'Block-by-block Difference in Building Count ($n_{DG} - n_{OSM}$)')
@@ -157,3 +158,26 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+def sl_outliers(dg, diff):
+    ndiff = diff[(-10000 < diff.delta_n) & (diff.delta_n < 0)]
+    fig, ax = plt.subplots()
+    dg.plot(facecolor="black", alpha = 0.8, ax = ax)
+    ndiff.plot("delta_n", legend=True, ax=ax) 
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().axes.get_yaxis().set_visible(False)
+    plt.title(r'Non-Outlier Blocks Where $n_{OSM} > n_{DG}$')
+    plt.subplots_adjust(left = 0.02, bottom = 0.02, right = 0.98, top = 0.88, wspace = 0.10)
+    plt.savefig("neg_delta_n_highlight.png", dpi=300, bbox_inches="tight")
+    plt.show()
+
+def linear_plot(diff):
+    fig, ax = plt.subplots()
+    pd.DataFrame(diff).plot(style = 'k.', x = "num_buildings", y = "num_buildings_osm", ax = ax)
+    ax.plot([0, 207000], [0, 207000], 'r')
+    plt.title(r'DG Building Count vs OSM Building Count for Freetown, SL')
+    plt.xlabel("$n_{DG}$")
+    plt.ylabel("$n_{OSM}$")
+    plt.semilogx()
+    plt.semilogy()
+    plt.show()
