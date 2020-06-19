@@ -1,0 +1,8 @@
+shapely
+geopandas
+opencv-python
+matplotlib
+torch
+torchvision
+scipy
+geopy
