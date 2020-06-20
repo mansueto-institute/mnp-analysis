@@ -209,14 +209,13 @@ def simple_area_interpolate(
         dfs.append(intensive)
 
     df = pd.concat(dfs, axis=0)
-    df["geometry"] = target_df["geometry"]
 
     data = {}
     for c in extensive:
         data[c] = df[c].values
-    data['geometry'] = target_df['geometry'].copy
+    data['geometry'] = target_df['geometry'].values
 
-    df = gpd.GeoDataFrame(df)
+    df = gpd.GeoDataFrame(data)
     return df
 
 
