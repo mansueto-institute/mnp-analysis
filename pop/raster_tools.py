@@ -208,7 +208,7 @@ def simple_area_interpolate(
     if intensive_variables:
         dfs.append(intensive)
 
-    df = pd.concat(dfs, axis=0)
+    #df = pd.concat(dfs, axis=0)
 
     data = {}
     for c in extensive:

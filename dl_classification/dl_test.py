@@ -5,6 +5,7 @@ import pandas as pd
 from pathlib import Path 
 import matplotlib.pyplot as plt
 from shapely.geometry import LineString, Polygon
+import shapely
 import numpy as np
 
 from geopy import distance 
@@ -121,6 +122,11 @@ def create_raster_repr(block_geom: Polygon, building_list: List[Polygon],
 
 def view_masks(m0, m1, m2):
 
+    # m = {'m0': m0, 'm1': m1, 'm2':m2}
+    # for k,v in m.items():
+    #     if isinstance(v, torch.tensor):
+    #         m[k] = v.cpu().numpy().astype()
+
     fig, ax = plt.subplots(nrows=1, ncols=3)
     ax[0].imshow(m0)
     ax[1].imshow(m1)
@@ -231,50 +237,48 @@ class BlocksDataset(torch.utils.data.Dataset):
                  complexity_df: pd.DataFrame,
                  buffer_amt=0.0001, 
                  pixel_res_m=2, 
-                 apply_ln=True):
+                 apply_ln=True,
+                 random_rotate=False,
+                 crop_mult=16):
+        '''
+        To-Do: may need to rethink seed setting if multi-gpu
+        '''
+        
         super(BlocksDataset, self).__init__()
 
         self.pixel_res_m = pixel_res_m 
         self.buffer_amt = buffer_amt
-
-        #blocks_gdf, buildings_gdf, complexity_df = get_block_buildings_files(country_code, gadm)
         
         self.bldgs = add_buildings_to_blocks(blocks_gdf, buildings_gdf)
         self.complexity_df = complexity_df
         self.complexity_df.set_index('block_id', inplace=True)
         self.apply_ln = apply_ln
+        self.random_rotate = random_rotate
+        self.eps = torch.Tensor([1e-5])
+        self.crop_mult = crop_mult
 
         # del blocks_gdf
         # del buildings_gdf
     @staticmethod
     def from_params(country_code: str, 
                     gadm: str, 
-                    buffer_amt=0.0001, 
-                    pixel_res_m=2, 
-                    apply_ln=True):
-
+                    **kwargs):
         self.country_code = country_code
         self.gadm = gadm 
         blocks_gdf, buildings_gdf, complexity_df = get_block_buildings_files(country_code, gadm)
 
-        return BlocksDataset(blocks_gdf, buildings_gdf, complexity_df, 
-                             buffer_amt, pixel_res_m, apply_ln)
-
+        return BlocksDataset(blocks_gdf, buildings_gdf, complexity_df, **kwargs)
 
     @staticmethod
     def from_paths(blocks_path: str, 
                    buildings_path: str, 
                    complexity_path: str,
-                   buffer_amt=0.0001, 
-                   pixel_res_m=2, 
-                   apply_ln=True):
-
+                   **kwargs):
         blocks_gdf = csv_to_geo(str(blocks_path))
         buildings_gdf = gpd.read_file(buildings_path)
         complexity_df = pd.read_csv(complexity_path, usecols=['block_id', 'complexity'])
 
-        return BlocksDataset(blocks_gdf, buildings_gdf, complexity_df, 
-                             buffer_amt, pixel_res_m, apply_ln)
+        return BlocksDataset(blocks_gdf, buildings_gdf, complexity_df, **kwargs)
 
     def __len__(self):
         return len(self.bldgs) 
@@ -286,6 +290,10 @@ class BlocksDataset(torch.utils.data.Dataset):
         pixel_res_m = self.pixel_res_m
         buffer_amt = self.buffer_amt
 
+        if self.random_rotate:
+            rand_angle = np.random.randint(0, 360)
+            block_geom, building_list = rotate_all(block_geom, building_list, rand_angle)
+
         block_mask, building_mask, road_mask = create_raster_repr(block_geom, 
                                            building_list, buffer_amt=buffer_amt, 
                                            dt_road=True, pixel_res_m=pixel_res_m, dt_block=True) 
@@ -294,16 +302,67 @@ class BlocksDataset(torch.utils.data.Dataset):
         complexity = self.complexity_df.loc[block_id]['complexity']
 
         # Now some final processing
-        block_mask = torch.log(torch.from_numpy(block_mask))
-        road_mask = torch.log(torch.from_numpy(road_mask))
-        building_mask = torch.log(torch.from_numpy(building_mask.copy()))
+        block_mask = torch.from_numpy(block_mask).to(torch.float32)
+        road_mask = torch.from_numpy(road_mask).to(torch.float32)
+        building_mask = torch.from_numpy(building_mask.copy()).to(torch.float32)
+
+        if self.apply_ln:
+            log_eps = torch.log(self.eps).to(torch.float32)
+            
+            block_mask = torch.max(log_eps, torch.log(block_mask))
+            road_mask = torch.max(log_eps, torch.log(road_mask))
+            building_mask = torch.max(log_eps, torch.log(building_mask))
+
+        # Crop
+        block_mask = crop_to_multiple(block_mask, self.crop_mult)
+        building_mask = crop_to_multiple(building_mask, self.crop_mult)
+        road_mask = crop_to_multiple(road_mask, self.crop_mult)
 
         data = {'block_mask': block_mask, 
                 'building_mask': building_mask,
                 'road_mask': road_mask,
                 }
 
+
         return data, complexity
+
+def cut_half(val: int) -> Tuple[int, int]:
+    '''
+    Splits an int into two, as evenly as possible
+    '''
+    if val % 2 == 0:
+        return val//2, val//2
+    else:
+        return val//2, val//2+1
+
+def crop_to_multiple(t_img: torch.Tensor, multiple: int) -> torch.Tensor:
+    '''
+    Crops tensor so that it is divisible my |multiple|
+    Takes center crop
+    '''
+    h, w = t_img.shape[-2:]
+    rem_h = h % multiple
+    rem_w = w % multiple
+
+    h_start, h_end  = cut_half(rem_h)
+    w_start, w_end = cut_half(rem_w)
+
+    crop = t_img[...,h_start:h-h_end, w_start:w-w_end]
+    return crop 
+
+def rotate_all(block_geom: Polygon, 
+               building_list: List[Polygon], 
+               degree_angle: int) -> Tuple[Polygon, List[Polygon]]:
+    
+    pt = block_geom.centroid
+
+    rotate_fn = lambda geom: shapely.affinity.rotate(geom, degree_angle, origin=pt)
+
+    block_geom = rotate_fn(block_geom)
+    new_buildings = [rotate_fn(geom) for geom in building_list]
+
+    return block_geom, new_buildings
+
 
 class ConvBlock(nn.Module):
 
