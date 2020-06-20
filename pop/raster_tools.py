@@ -14,6 +14,9 @@ import affine
 import numpy.ma as ma 
 from tobler import area_weighted 
 from tobler.area_weighted import area_tables, area_interpolate
+from tobler.area_weighted import area_tables, area_interpolate
+from tobler.util.util import _check_crs, _nan_check, _check_presence_of_crs
+import pandas as pd
 
 # Roots
 _ROOT = Path(__file__).resolve().parent.parent
@@ -153,28 +156,91 @@ def fix_invalid_polygons(geom: Union[Polygon, MultiPolygon]) -> Polygon:
     else:
         return geom.buffer(0)
 
-freetown_ls = Path("../data/Freetown/Freetown_landscan.tif")
-freetown_fb = Path("../data/Freetown/Freetown_facebook.tif")
 
-# extract_aoi_data_from_raster(blocks_path, ls_path, freetown_ls)
-# extract_aoi_data_from_raster(blocks_path, fb_path, freetown_fb)
+def simple_area_interpolate(
+    source_df,
+    target_df,
+    extensive_variables=None,
+    intensive_variables=None,
+    tables=None,
+    allocate_total=True,
+    ):
+    """
+ 
+    """
+
+    SU, UT = area_tables(source_df, target_df)
+
+    den = source_df["geometry"].area.values
+    if allocate_total:
+        den = SU.sum(axis=1)
+    den = den + (den == 0)
+    weights = np.dot(np.diag(1 / den), SU)
+
+    dfs = []
+    extensive = []
+    if extensive_variables:
+        for variable in extensive_variables:
+            vals = _nan_check(source_df, variable)
+            estimates = np.dot(np.diag(vals), weights)
+            estimates = np.dot(estimates, UT)
+            estimates = estimates.sum(axis=0)
+            extensive.append(estimates)
+    extensive = np.array(extensive)
+    extensive = pd.DataFrame(extensive.T, columns=extensive_variables)
+
+    ST = np.dot(SU, UT)
+    area = ST.sum(axis=0)
+    den = np.diag(1.0 / (area + (area == 0)))
+    weights = np.dot(ST, den)
+    intensive = []
+    if intensive_variables:
+        for variable in intensive_variables:
+            vals = _nan_check(source_df, variable)
+            vals.shape = (len(vals), 1)
+            est = (vals * weights).sum(axis=0)
+            intensive.append(est)
+    intensive = np.array(intensive)
+    intensive = pd.DataFrame(intensive.T, columns=intensive_variables)
+
+    if extensive_variables:
+        dfs.append(extensive)
+    if intensive_variables:
+        dfs.append(intensive)
+
+    df = pd.concat(dfs, axis=0)
+    df["geometry"] = target_df["geometry"]
+
+    data = {}
+    for c in extensive:
+        data[c] = df[c].values
+    data['geometry'] = target_df['geometry'].copy
+
+    df = gpd.GeoDataFrame(df)
+    return df
 
 
-blocks = gdf.read_file(blocks_path)
+if __name__ == "__main__":
+    
+    freetown_ls = Path("../data/Freetown/Freetown_landscan.tif")
+    freetown_fb = Path("../data/Freetown/Freetown_facebook.tif")
 
-# (1) Landscan and Facebook pop apply to blocks, via block area
-pop_ls = gpd.read_file(freetown_ls.with_suffix('.geojson'))
-gt0 = pop_ls['data'] > 1
-pop_ls['data'] = pop_ls['data'] * gt0
-ls_blocks_est = area_interpolate(pop_ls, blocks, extensive_variables=['data'])
-
-pop_fb = gpd.read_file(freetown_fb.with_suffix('.geojson'))
-pop_fb['geometry'] = pop_fb['geometry'].apply(fix_invalid_polygons)
-fb_blocks_est = area_interpolate(pop_fb, blocks, extensive_variables=['data'])
+    # extract_aoi_data_from_raster(blocks_path, ls_path, freetown_ls)
+    # extract_aoi_data_from_raster(blocks_path, fb_path, freetown_fb)
 
 
+    blocks = gdf.read_file(blocks_path)
 
+    # (1) Landscan and Facebook pop apply to blocks, via block area
+    pop_ls = gpd.read_file(freetown_ls.with_suffix('.geojson'))
+    gt0 = pop_ls['data'] > 1
+    pop_ls['data'] = pop_ls['data'] * gt0
+    ls_blocks_est = area_interpolate(pop_ls, blocks, extensive_variables=['data'])
 
+    pop_fb = gpd.read_file(freetown_fb.with_suffix('.geojson'))
+    pop_fb['geometry'] = pop_fb['geometry'].apply(fix_invalid_polygons)
+    fb_blocks_est = area_interpolate(pop_fb, blocks, extensive_variables=['data'])
 
-
+    blocks_diff = ls_blocks_est['data'] - fb_blocks_est['data']
+    gdf_diff = gpd.GeoDataFrame({'geometry':blocks['geometry'], 'difference': blocks_diff})
 
