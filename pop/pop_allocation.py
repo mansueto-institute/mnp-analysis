@@ -37,7 +37,18 @@ def load_landscan_geojson(landscan_path: str) -> gpd.GeoDataFrame:
 
 
 # (2) Do allocation
+def allocate_population(buildings_gdf: gpd.GeoDataFrame,
+	                    population_gdf: gpd.GeoDataFrame,
+	                    pop_variable: str,
+	                    allocate_total=True) -> gpd.GeoDataFrame:
+	
+	buildings_with_pop = raster_tools.simple_area_interpolate(population_gdf, 
+		                                         buildings_gdf, 
+		                                         extensive_variables=[pop_variable], 
+		                                         allocate_total=allocate_total)
 
+	buildings_gdf[pop_variable] = buildings_with_pop[pop_variable]
+	return buildings_gdf
 
 
 
