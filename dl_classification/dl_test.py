@@ -21,8 +21,7 @@ Utilities to convert a vector block representation
 to a raster/segmentation map
 
 TO-DO:
- - each image needs to be divisible by how much the model downsamples
-   but we can't just resize so we need to crop to the desired size
+ - Finish implementing training step
 """
 
 def csv_to_geo(csv_path, add_file_col=False) -> gpd.GeoDataFrame:
@@ -400,7 +399,7 @@ class ComplexityFeatureExtractor(nn.Module):
         '''      
 
         for i in range(self.layer_count):
-            conv = self.getattr(f'conv{i}')
+            conv = getattr(f'conv{i}')
             x = self.pool(conv(x))
         return x 
 
@@ -430,8 +429,10 @@ class ComplexityClassifier(nn.Module):
     def forward(self, x):
 
         for i in range(self.layer_count):
-            fc = self.getattr(f'fc-{i}')
+            fc = getattr(f'fc-{i}')
+            x = self.act(fc(x))
 
+def stack(img_dict):
 
 
 # country_code = 'SLE'
