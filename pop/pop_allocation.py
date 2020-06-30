@@ -11,7 +11,7 @@ from . import raster_tools
 def join_block_building(block_gdf: gpd.GeoDataFrame,
 	                    buildings_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
-	buildings_gdf = gpd.sjoin(buildings_gdf[['geometry', 'id']], block_gdf,
+	buildings_gdf = gpd.sjoin(buildings_gdf, block_gdf,
 		                      how='left', op='intersects')
 	return buildings_gdf
 
