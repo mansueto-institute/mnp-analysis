@@ -427,6 +427,12 @@ class ComplexityClassifier(nn.Module):
         # Make this a regression problem? Or classification?
         # Probably just a classification problem
 
+    def forward(self, x):
+
+        for i in range(self.layer_count):
+            fc = self.getattr(f'fc-{i}')
+
+
 
 # country_code = 'SLE'
 # gadm = 'SLE.4.2.1_1'
