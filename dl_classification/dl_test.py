@@ -399,7 +399,7 @@ class ComplexityFeatureExtractor(nn.Module):
         '''      
 
         for i in range(self.layer_count):
-            conv = getattr(f'conv{i}')
+            conv = getattr(self, f'conv{i}')
             x = self.pool(conv(x))
         return x 
 
@@ -429,10 +429,9 @@ class ComplexityClassifier(nn.Module):
     def forward(self, x):
 
         for i in range(self.layer_count):
-            fc = getattr(f'fc-{i}')
+            fc = getattr(self, f'fc-{i}')
             x = self.act(fc(x))
 
-def stack(img_dict):
 
 
 # country_code = 'SLE'
