@@ -2,6 +2,7 @@ from tobler import area_weighted
 from tobler.area_weighted import area_tables, area_interpolate
 import geopandas as gpd 
 import numpy as np 
+from typing import Tuple
 
 from . import raster_tools
 
