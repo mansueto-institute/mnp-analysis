@@ -17,6 +17,7 @@ import torch
 import torch.nn as nn 
 import torch.nn.functional as F 
 from torch.utils.data import DataLoader, Dataset 
+from sklearn.metrics import confusion_matrix
 
 """
 Utilities to convert a vector block representation
@@ -489,9 +490,18 @@ class Trainer():
 
         self.loss_fn = nn.NLLLoss(weight=loss_weight)
 
-    def update(self, batch_data: Tuple):
+    def init_pred_dict(self):
+
+        predictions = {}
+        predictions['target'] = []
+        predictions['predicted'] = []
+        return predictions
+
+    def update(self, batch_data: Tuple, predictions: Dict=None):
 
         self.model.train()
+        if predictions is None:
+            predictions = self.init_pred_dict()
 
         geo_img, complexity = batch_data
         geo_img = torch.stack([geo_img[d] for d in self.comps], dim=1).cuda()
@@ -501,23 +511,45 @@ class Trainer():
 
         log_output = self.model(geo_img)
         loss = self.loss_fn(log_output, complexity)
+        pred_class = log_output.argmax(dim=1)
         
         loss.backward()
         self.optim.step()
 
-        return loss 
+        # Update results dict
+        predictions['target'].append(complexity.item())
+        predictions['predicted'].append(pred_class.item())
 
-    def train(self, steps: int=np.inf):
+        return loss, predictions
+
+    def train(self, 
+              epochs: int=1, 
+              steps: int=np.inf,
+              summary_every: int=100):
+
+        predictions = self.init_pred_dict()
 
         loss_dict = {'nll_loss':[]}
 
-        for i, batch_data in enumerate(self.dataloader):
-            
-            loss = self.update(batch_data)
-            print("Loss {} = {}".format(i, loss.item()))
+        global_step = 0
+        for cur_epoch in range(epochs):
 
-            if i == steps:
-                break
+            preds = []
+            targets = []
+
+            for batch_data in self.dataloader:
+
+                global_step += 1
+                
+                loss, predictions = self.update(batch_data)
+                print("Loss {} = {}".format(global_step, loss.item()))
+
+                if global_step % summary_every == 0:
+                    conf = confusion_matrix(predictions['target'], predictions['predicted'])
+                    print("At step {} conf. matrix:\n{}".format(global_step, conf))
+
+                if global_step == steps:
+                    break
 
 
 # country_code = 'SLE'
