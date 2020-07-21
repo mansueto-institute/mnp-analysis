@@ -451,7 +451,7 @@ class ComplexityFeatureClassifier(nn.Module):
         
         x = self.final_fc(x)
 
-        if model.training:
+        if self.training:
             x = F.log_softmax(x)
         else:
             x = F.softmax(x)
@@ -510,6 +510,8 @@ class Trainer():
         self.optim.zero_grad()
 
         log_output = self.model(geo_img)
+
+        print("log_output = {} | complexity = {}".format(log_output, complexity))
         loss = self.loss_fn(log_output, complexity)
         pred_class = log_output.argmax(dim=1)
         
@@ -542,7 +544,7 @@ class Trainer():
                 global_step += 1
                 
                 loss, predictions = self.update(batch_data)
-                print("Loss {} = {}".format(global_step, loss.item()))
+                #print("Loss {} = {}".format(global_step, loss.item()))
 
                 if global_step % summary_every == 0:
                     conf = confusion_matrix(predictions['target'], predictions['predicted'])
