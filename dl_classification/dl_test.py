@@ -11,7 +11,7 @@ import numpy as np
 from geopy import distance 
 from scipy.ndimage.morphology import distance_transform_edt
 
-from typing import List, Callable, Tuple
+from typing import List, Callable, Tuple, Dict
 
 import torch
 import torch.nn as nn 
