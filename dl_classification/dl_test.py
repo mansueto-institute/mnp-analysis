@@ -511,7 +511,6 @@ class Trainer():
 
         log_output = self.model(geo_img)
 
-        print("log_output = {} | complexity = {}".format(log_output, complexity))
         loss = self.loss_fn(log_output, complexity)
         pred_class = log_output.argmax(dim=1)
         
@@ -534,12 +533,25 @@ class Trainer():
         loss_dict = {'nll_loss':[]}
 
         global_step = 0
+
         for cur_epoch in range(epochs):
 
             preds = []
             targets = []
 
-            for batch_data in self.dataloader:
+            epoch_steps = len(self.dataloader)
+
+            data_iter = iter(self.dataloader)
+
+            for i in range(epoch_steps):
+                try:
+                    batch_data = next(data_iter)
+                except StopIteration:
+                    print("Epoch complete!")
+                    break
+                else:
+                    print("...bad data loading...")
+                    continue
 
                 global_step += 1
                 
