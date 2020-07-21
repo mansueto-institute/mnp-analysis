@@ -261,7 +261,7 @@ class BlocksDataset(torch.utils.data.Dataset):
         self.random_rotate = random_rotate
         self.eps = torch.Tensor([1e-5])
         self.crop_mult = crop_mult
-        self.complexity_path = complexity_max
+        self.complexity_max = complexity_max
 
         # del blocks_gdf
         # del buildings_gdf
