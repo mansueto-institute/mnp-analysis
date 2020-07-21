@@ -555,12 +555,13 @@ class Trainer():
 
                 global_step += 1
                 
-                loss, predictions = self.update(batch_data)
+                loss, predictions = self.update(batch_data, predictions=predictions)
                 #print("Loss {} = {}".format(global_step, loss.item()))
 
                 if global_step % summary_every == 0:
                     conf = confusion_matrix(predictions['target'], predictions['predicted'])
                     print("At step {} conf. matrix:\n{}".format(global_step, conf))
+                    print("Loss = {}".format(loss))
 
                 if global_step == steps:
                     break
