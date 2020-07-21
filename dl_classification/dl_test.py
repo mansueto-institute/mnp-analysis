@@ -21,7 +21,9 @@ Utilities to convert a vector block representation
 to a raster/segmentation map
 
 TO-DO:
- - Finish implementing training step
+ - Fix the size mismatch at beginning of Linear Classifier
+ - Add final activations for classification
+ - Training loop
 """
 
 def csv_to_geo(csv_path, add_file_col=False) -> gpd.GeoDataFrame:
@@ -378,7 +380,10 @@ class ConvBlock(nn.Module):
 
 class ComplexityFeatureExtractor(nn.Module):
 
-    def __init__(self, input_ch: int, inter_ch: List[int]):
+    def __init__(self, 
+                 input_ch: int, 
+                 inter_ch: List[int],
+                 output_res: int):
         super(ComplexityFeatureExtractor, self).__init__()
 
         self.chs = inter_ch
@@ -386,27 +391,31 @@ class ComplexityFeatureExtractor(nn.Module):
         self.layer_count = len(self.chs) - 1
 
         # Convolutional block
+        self.convs = nn.ModuleList()
         for i in range(self.layer_count):
             ch_in = self.chs[i]
             ch_out = self.chs[i+1]
-            self.add_module(f'conv{i}', ConvBlock(ch_in, ch_out, 3))
+            self.convs.append(ConvBlock(ch_in, ch_out, 3))
+            #self.add_module(f'conv{i}', ConvBlock(ch_in, ch_out, 3))
         
         self.pool = nn.MaxPool2d(2)
 
     def forward(self, x):
         '''
-        Input is a n-channel image representing an urban area
-        '''      
+        Input is an n-channel image representing an urban area
+        '''     
 
-        for i in range(self.layer_count):
-            conv = getattr(self, f'conv{i}')
-            x = self.pool(conv(x))
+        for conv in self.convs:
+        	x = self.pool(conv(x)) 
+
         return x 
 
 
 class ComplexityClassifier(nn.Module):
 
     def __init__(self, input_res: int, fc_chs: List[int]):
+
+        super(ComplexityClassifier, self).__init__()
 
         self.input_shape = (input_res, input_res)
         self.adt_pool = nn.AdaptiveMaxPool2d(output_size=self.input_shape)
@@ -415,10 +424,11 @@ class ComplexityClassifier(nn.Module):
         self.layer_count = len(self.fc_chs) - 1
 
         # Classifier
+        self.linears = nn.ModuleList()
         for i in range(self.layer_count):
             fc_in = self.fc_chs[i]
             fc_out = self.fc_chs[i+1]
-            self.add_module(f'fc{i}', nn.Linear(fc_in, fc_out))
+            self.linears.append(nn.Linear(fc_in, fc_out))
 
         self.act = nn.ReLU()
 
@@ -428,10 +438,12 @@ class ComplexityClassifier(nn.Module):
 
     def forward(self, x):
 
-        for i in range(self.layer_count):
-            fc = getattr(self, f'fc-{i}')
-            x = self.act(fc(x))
+    	for fc in self.linears:
+    		x = self.act(fc(x))
 
+    	return x 
+
+ 
 
 
 # country_code = 'SLE'
