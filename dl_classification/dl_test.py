@@ -15,6 +15,8 @@ from typing import List, Callable, Tuple
 
 import torch
 import torch.nn as nn 
+import torch.nn.functional as F 
+from torch.utils.data import DataLoader, Dataset 
 
 """
 Utilities to convert a vector block representation
@@ -240,7 +242,8 @@ class BlocksDataset(torch.utils.data.Dataset):
                  pixel_res_m=2, 
                  apply_ln=True,
                  random_rotate=False,
-                 crop_mult=16):
+                 crop_mult=16,
+                 complexity_max=9):
         '''
         To-Do: may need to rethink seed setting if multi-gpu
         '''
@@ -257,6 +260,7 @@ class BlocksDataset(torch.utils.data.Dataset):
         self.random_rotate = random_rotate
         self.eps = torch.Tensor([1e-5])
         self.crop_mult = crop_mult
+        self.complexity_path = complexity_max
 
         # del blocks_gdf
         # del buildings_gdf
@@ -301,6 +305,7 @@ class BlocksDataset(torch.utils.data.Dataset):
 
         block_id = self.bldgs.iloc[idx]['block_id']
         complexity = self.complexity_df.loc[block_id]['complexity']
+        complexity = min(complexity, self.complexity_max)
 
         # Now some final processing
         block_mask = torch.from_numpy(block_mask).to(torch.float32)
@@ -382,8 +387,7 @@ class ComplexityFeatureExtractor(nn.Module):
 
     def __init__(self, 
                  input_ch: int, 
-                 inter_ch: List[int],
-                 output_res: int):
+                 inter_ch: List[int]):
         super(ComplexityFeatureExtractor, self).__init__()
 
         self.chs = inter_ch
@@ -406,44 +410,114 @@ class ComplexityFeatureExtractor(nn.Module):
         '''     
 
         for conv in self.convs:
-        	x = self.pool(conv(x)) 
+            x = self.pool(conv(x)) 
 
         return x 
 
 
-class ComplexityClassifier(nn.Module):
+class ComplexityFeatureClassifier(nn.Module):
 
-    def __init__(self, input_res: int, fc_chs: List[int]):
+    def __init__(self, 
+                 input_ch: int,
+                 input_res: int, 
+                 class_count: int,
+                 fc_chs: List[int]):
 
-        super(ComplexityClassifier, self).__init__()
+        super(ComplexityFeatureClassifier, self).__init__()
 
-        self.input_shape = (input_res, input_res)
-        self.adt_pool = nn.AdaptiveMaxPool2d(output_size=self.input_shape)
+        self.input_shape = (input_ch, input_res, input_res)
+        self.input_res = input_res
+        self.input_ch = input_ch
+        self.adt_pool = nn.AdaptiveMaxPool2d(output_size=self.input_res)
         self.fc_chs = fc_chs
-        self.fc_chs.insert(0, input_res*input_res)
+        self.fc_chs.insert(0, input_ch*input_res*input_res)
         self.layer_count = len(self.fc_chs) - 1
 
         # Classifier
         self.linears = nn.ModuleList()
-        for i in range(self.layer_count):
-            fc_in = self.fc_chs[i]
-            fc_out = self.fc_chs[i+1]
+        for fc_in, fc_out in zip(self.fc_chs[:-1], self.fc_chs[1:]):
             self.linears.append(nn.Linear(fc_in, fc_out))
 
         self.act = nn.ReLU()
-
-        # Need to add the final classier
-        # Make this a regression problem? Or classification?
-        # Probably just a classification problem
+        self.final_fc = nn.Linear(fc_out, class_count)
 
     def forward(self, x):
 
-    	for fc in self.linears:
-    		x = self.act(fc(x))
+        x = torch.flatten(self.adt_pool(x), start_dim=1)
 
-    	return x 
+        for fc in self.linears:
+            x = self.act(fc(x))
+        
+        x = self.final_fc(x)
 
- 
+        if model.training:
+            x = F.log_softmax(x)
+        else:
+            x = F.softmax(x)
+
+        return x 
+
+class ComplexityClassifier(nn.Module):
+    
+    def __init__(self, 
+                 ft_model: ComplexityFeatureExtractor,
+                 cl_model: ComplexityFeatureClassifier):
+
+        super(ComplexityClassifier, self).__init__()
+
+        self.ft_extractor = ft_model
+        self.classifier = cl_model
+
+    def forward(self, x):
+
+        x = self.classifier(self.ft_extractor(x))
+
+        return x  
+
+class Trainer():
+
+    def __init__(self,
+                 model: ComplexityClassifier,
+                 dataloader: DataLoader,
+                 loss_weight=None):
+
+        self.model = model 
+        self.dataloader = dataloader
+        self.dataloader_iter = iter(dataloader)
+        self.optim = torch.optim.Adam(self.model.parameters())
+        self.comps = ['block_mask', 'building_mask', 'road_mask']
+
+        self.loss_fn = nn.NLLLoss(weight=loss_weight)
+
+    def update(self, batch_data: Tuple):
+
+        self.model.train()
+
+        geo_img, complexity = batch_data
+        geo_img = torch.stack([geo_img[d] for d in self.comps], dim=1).cuda()
+        complexity = complexity.cuda()
+
+        self.optim.zero_grad()
+
+        log_output = self.model(geo_img)
+        loss = self.loss_fn(log_output, complexity)
+        
+        loss.backward()
+        self.optim.step()
+
+        return loss 
+
+    def train(self, steps: int=np.inf):
+
+        loss_dict = {'nll_loss':[]}
+
+        for i, batch_data in enumerate(self.dataloader):
+            
+            loss = self.update(batch_data)
+            print("Loss {} = {}".format(i, loss.item()))
+
+            if i == steps:
+                break
 
 
 # country_code = 'SLE'
