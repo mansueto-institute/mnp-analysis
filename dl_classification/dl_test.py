@@ -549,7 +549,7 @@ class Trainer():
                 except StopIteration:
                     print("Epoch complete!")
                     break
-                else:
+                except:
                     print("...bad data loading...")
                     continue
 
