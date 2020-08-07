@@ -4,7 +4,7 @@ import geopandas as gpd
 import pandas as pd
 from pathlib import Path 
 import matplotlib.pyplot as plt
-from shapely.geometry import LineString, Polygon
+from shapely.geometry import LineString, Polygon, MultiPolygon
 import shapely
 import numpy as np
 
@@ -24,9 +24,12 @@ Utilities to convert a vector block representation
 to a raster/segmentation map
 
 TO-DO:
- - Fix the size mismatch at beginning of Linear Classifier
- - Add final activations for classification
- - Training loop
+ - Some of the samples are loading badly and breaking, 
+     looks like they're multipoly's rather than polys
+ - Weighted loss
+ - More data
+ - Train/val split
+ - Self attention?
 """
 
 def csv_to_geo(csv_path, add_file_col=False) -> gpd.GeoDataFrame:
@@ -104,6 +107,10 @@ def create_raster_repr(block_geom: Polygon, building_list: List[Polygon],
     building_mask = np.zeros_like(block_mask)
 
     for building_geom in building_list:
+        if isinstance(building_geom, MultiPolygon):
+            assert len(building_geom) == 1, "Is multipolygon and has {} polys".format(len(building_geom))
+            building_geom = building_geom[0]
+            
         points = building_geom.exterior.coords
         building_mask = draw_shape_in_img(points, building_mask, 
                           to_pixel_coords_fn)
@@ -571,9 +578,21 @@ class Trainer():
 # gadm = 'SLE.4.2.1_1'
 # dataset = BlocksDataset(country_code, gadm)
 
-input_ch = 3
-inter_ch = [32, 64, 128, 256, 512, 512]
+# input_ch = 3
+# inter_ch = [32, 64, 128, 256, 512, 512]
 
 
+# idx = i
+# block_geom = dataset.bldgs.iloc[idx]['block_geom']
+# building_list = dataset.bldgs.iloc[idx]['bldg_geom_list']
+# pixel_res_m = dataset.pixel_res_m
+# buffer_amt = dataset.buffer_amt
 
+# if dataset.random_rotate:
+#     rand_angle = np.random.randint(0, 360)
+#     block_geom, building_list = rotate_all(block_geom, building_list, rand_angle)
+
+# block_mask, building_mask, road_mask = create_raster_repr(block_geom, 
+#                                    building_list, buffer_amt=buffer_amt, 
+#                                    dt_road=True, pixel_res_m=pixel_res_m, dt_block=True) 
 
