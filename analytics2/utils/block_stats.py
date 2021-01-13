@@ -71,13 +71,14 @@ def add_block_area(bldg_pop: gpd.GeoDataFrame,
     block = flex_load(block)
     block = block.to_crs("EPSG:3395")
     block['block_area'] = block.area
+    block['block_area'] = block['block_area'] * 1e-6
+    block = block.to_crs("EPSG:4326")
 
     if 'block_id' not in bldg_pop.columns:
         bldg_pop = add_block_id(bldg_pop, block)
 
     bldg_pop = bldg_pop.merge(block[['block_id', 'block_area']],
                               how='left', on='block_id')
-    block = block.to_crs("EPSG:4326")
     return bldg_pop
 
 def add_block_bldg_count(bldg_pop: gpd.GeoDataFrame,
@@ -100,7 +101,7 @@ def add_block_bldg_area(bldg_pop: gpd.GeoDataFrame,
         bldg_pop = add_block_id(bldg_pop, block)
 
     bldg_pop = bldg_pop.to_crs("EPSG:3395")
-    bldg_pop['bldg_area'] = bldg_pop.area 
+    bldg_pop['bldg_area'] = (bldg_pop.area * 1e-6)
     block_bldg_area = bldg_pop[['block_id', 'bldg_area']].groupby('block_id').sum().reset_index()
     block_bldg_area.rename(columns={'bldg_area': 'block_bldg_area'}, inplace=True)
 
@@ -133,6 +134,7 @@ def add_block_bldg_count_density(bldg_pop: gpd.GeoDataFrame,
         bldg_pop = add_block_area(bldg_pop, block) 
 
     bldg_pop['block_bldg_count_density'] = bldg_pop['block_bldg_count'] / bldg_pop['block_area']
+    return bldg_pop
 
 def add_block_pop(bldg_pop: gpd.GeoDataFrame,
                   block: Union[gpd.GeoDataFrame, str] = None,
@@ -160,4 +162,38 @@ def add_block_pop_density(bldg_pop: gpd.GeoDataFrame,
         bldg_pop = add_block_pop(bldg_pop, block)
 
     bldg_pop['block_pop_density'] = bldg_pop['block_pop'] / bldg_pop['block_area']
-    return bldg_pop    
+    return bldg_pop  
+
+
+######################################
+# COMMANDS FOR GENERAL AOI SUMMARIES #
+######################################
+def make_aoi_summary(bldg_pop_data: Union[str, gpd.GeoDataFrame], 
+                     block_data: Union[str, gpd.GeoDataFrame],
+                     aoi_out_path: str = None,
+                     ) -> None:
+    '''
+    Calculates all statistics given:
+        1. bldg-level pop allocation
+        2. block geometry
+        3. path to save output to
+    '''
+
+    if isinstance(bldg_pop_data, gpd.GeoDataFrame):
+        bldg_pop = bldg_pop_data
+    else:
+        bldg_pop = load_bldg_pop(bldg_pop_data)
+    block = flex_load(block_data)
+    bldg_pop = add_block_area(bldg_pop, block)
+    bldg_pop = add_block_bldg_count(bldg_pop, block)
+    bldg_pop = add_block_bldg_area(bldg_pop, block)
+    bldg_pop = add_block_bldg_area_density(bldg_pop, block)
+    bldg_pop = add_block_bldg_count_density(bldg_pop, block)
+    bldg_pop = add_block_pop(bldg_pop, block)
+    bldg_pop = add_block_pop_density(bldg_pop, block)
+
+    if aoi_out_path is not None:
+        aoi_out_path = Path(aoi_out_path)
+        aoi_out_path.parent.mkdir(parents=True, exist_ok=True)
+        bldg_pop.to_file(str(aoi_out_path), driver='GeoJSON')
+    return bldg_pop 

@@ -4,12 +4,13 @@ import rasterio.features
 from pathlib import Path 
 import geopandas as gpd 
 import pandas as pd 
-from shapely.geometry import MultiPolygon, Point, Polygon, MultiLineString, LineString
+from shapely.geometry import (MultiPolygon, Point, Polygon, 
+                              MultiLineString, LineString, MultiPoint)
 from rasterio.crs import CRS 
 from rasterio import features 
 from shapely.wkt import loads
 import geopandas as gdf 
-from typing import Union, List
+from typing import Union, List, Tuple 
 import affine 
 import numpy.ma as ma 
 from tobler import area_weighted 
@@ -48,7 +49,7 @@ def load_raster_selection(raster_io: rasterio.io.DatasetReader,
 
     # Perform the windowed read
     sub_data = raster_io.read(window=window)
-    return sub_data, transform
+    return sub_data, transform, window 
 
 def save_np_as_geotiff(np_array: np.ndarray, 
                        transform: affine.Affine,
@@ -116,39 +117,54 @@ def raster_to_geodataframe(raster_data: np.ndarray,
                                        })
 
 
-def extract_aoi_data_from_raster(geometry_path: str, 
+def extract_aoi_data_from_raster(geometry_data: Union[str, gpd.GeoDataFrame], 
                                  raster_path: str, 
-                                 out_path: str, 
+                                 out_path: str = None, 
                                  save_geojson: bool = True, 
                                  save_tif: bool = True,
-                                 ) -> None:
+                                 ) -> Tuple:
     '''
     Extracts the relevant data from a larger raster tiff, per the geometries
-    in geometry_path file and saves out.
+    in geometry_data file and saves out.
 
     Inputs:
-        - geometry_path (str) geojson file of vector geometries
+        - geometry_data (str) geojson file of vector geometries
         - raster_path (str) tiff file of raster data
         - out_path (str) path to save extracted data
     '''
-    tif_path = Path(out_path)
-    geojson_path = tif_path.with_suffix('.geojson')
+    out_path = Path(out_path) if out_path is not None else out_path
 
     raster_io = rasterio.open(raster_path)
-    if geometry_path.suffix == ".csv":
-        aoi_geoms = utils.load_csv_to_geo(geometry_path)
+    if isinstance(geometry_data, gpd.GeoDataFrame):
+        aoi_geoms = geometry_data
     else:
-        aoi_geoms = gpd.read_file(geometry_path)
+        if geometry_data.suffix == ".csv":
+            aoi_geoms = utils.load_csv_to_geo(geometry_data)
+        else:
+            aoi_geoms = gpd.read_file(geometry_data)
 
-    raster_data_selection, transform = load_raster_selection(raster_io, 
+    raster_data_selection, transform, window = load_raster_selection(raster_io, 
                                                     aoi_geoms['geometry'])
     
+    gdf_data = raster_to_geodataframe(raster_data_selection, 
+                                      transform,
+                                      window,
+                                      raster_io)
+    gdf_data['pop'] = gdf_data['pop'].apply(lambda x: max(0, x))
+
     if save_tif:
+        tif_path = out_path.with_suffix('.tiff')
         save_np_as_geotiff(raster_data_selection, transform, str(tif_path))
     if save_geojson:
-        gdf_data = raster_to_geodataframe(raster_data_selection, transform)
+        geojson_path = out_path.with_suffix('.geojson')
+        # gdf_data = raster_to_geodataframe(raster_data_selection, 
+        #                                   transform,
+        #                                   window,
+        #                                   raster_io)
         gdf_data.to_file(geojson_path, driver='GeoJSON')
         print("Saved GeoJSON at: {}".format(geojson_path))
+    return raster_data_selection, gdf_data
+
 
 def fix_invalid_polygons(geom: Union[Polygon, MultiPolygon]) -> Polygon:
     '''
@@ -159,67 +175,6 @@ def fix_invalid_polygons(geom: Union[Polygon, MultiPolygon]) -> Polygon:
     else:
         return geom.buffer(0)
 
-
-def simple_area_interpolate(
-    source_df,
-    target_df,
-    extensive_variables=None,
-    intensive_variables=None,
-    tables=None,
-    allocate_total=True,
-    ):
-    """
- 
-    """
-
-    SU, UT = area_tables(source_df, target_df)
-
-    den = source_df["geometry"].area.values
-    if allocate_total:
-        den = SU.sum(axis=1)
-    den = den + (den == 0)
-    weights = np.dot(np.diag(1 / den), SU)
-
-    dfs = []
-    extensive = []
-    if extensive_variables:
-        for variable in extensive_variables:
-            vals = _nan_check(source_df, variable)
-            estimates = np.dot(np.diag(vals), weights)
-            estimates = np.dot(estimates, UT)
-            estimates = estimates.sum(axis=0)
-            extensive.append(estimates)
-    extensive = np.array(extensive)
-    extensive = pd.DataFrame(extensive.T, columns=extensive_variables)
-
-    ST = np.dot(SU, UT)
-    area = ST.sum(axis=0)
-    den = np.diag(1.0 / (area + (area == 0)))
-    weights = np.dot(ST, den)
-    intensive = []
-    if intensive_variables:
-        for variable in intensive_variables:
-            vals = _nan_check(source_df, variable)
-            vals.shape = (len(vals), 1)
-            est = (vals * weights).sum(axis=0)
-            intensive.append(est)
-    intensive = np.array(intensive)
-    intensive = pd.DataFrame(intensive.T, columns=intensive_variables)
-
-    if extensive_variables:
-        dfs.append(extensive)
-    if intensive_variables:
-        dfs.append(intensive)
-
-    df = pd.concat(dfs, axis=0)
-
-    data = {}
-    for c in extensive:
-        data[c] = df[c].values
-    data['geometry'] = target_df['geometry'].values
-
-    df = gpd.GeoDataFrame(data)
-    return df
 
 def allocate_population(buildings_gdf: gpd.GeoDataFrame,
                         population_gdf: gpd.GeoDataFrame,
@@ -236,7 +191,7 @@ def allocate_population(buildings_gdf: gpd.GeoDataFrame,
     population_gdf['pop_id'] = np.arange(population_gdf.shape[0])
     buildings_gdf['bldg_id'] = np.arange(buildings_gdf.shape[0])
     geo = gpd.sjoin(buildings_gdf, population_gdf,
-                    how='left', op='intersects')[['bldg_id', 'geometry', 'pop_id', 'data']]
+                    how='left', op='intersects')[['bldg_id', 'geometry', 'pop_id', pop_variable]]
     
     # Handle building geoms intersecting multiple pop geoms
     # Split building into each piece, allocate, then sum by bldg_id
@@ -273,6 +228,41 @@ def allocate_population(buildings_gdf: gpd.GeoDataFrame,
 
     return buildings_gdf
 
+
+def alloc_pop_to_buildings(buildings_gdf_path: str,
+                           master_pop_path: str,
+                           alloc_out_path: str,
+                           pop_out_path: str,
+                           ) -> None:
+    '''
+    Extracts the relevant AoI in the master pop file based on the
+    buildings gdf, saves that out if you want, then does a building-level
+    allocation based on the building area. Saves out that building-level
+    population allocation
+
+    Inputs:
+        - buildings_gdf_path: path to buildings gdf
+        - master_pop_path: path to Landscan raster pop data
+        - alloc_out_path: path to save final building-level pop allocation
+        - pop_out_path: path to save extracted data from global Landscan pop
+    '''
+    buildings_gdf_path = Path(buildings_gdf_path)
+    master_pop_path = Path(master_pop_path)
+    pop_out_path = Path(pop_out_path)
+
+    extract_aoi_data_from_raster(buildings_gdf_path, 
+                                 master_pop_path, 
+                                 pop_out_path,
+                                 ) 
+    pop_out_path = pop_out_path.with_suffix(".geojson")
+    alloc_out_path = Path(alloc_out_path)
+    population_gdf = gpd.read_file(pop_out_path)
+    pop_variable = 'pop'
+    buildings_gdf = gpd.read_file(buildings_gdf_path)
+
+    bldg_pop = allocate_population(buildings_gdf, population_gdf, pop_variable)
+    alloc_out_path.parent.mkdir(exist_ok=True, parents=True)
+    bldg_pop.to_file(alloc_out_path, driver='GeoJSON')
 
 if __name__ == "__main__":
     
