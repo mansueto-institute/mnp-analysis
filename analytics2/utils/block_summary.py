@@ -4,9 +4,12 @@ import pandas as pd
 from shapely.wkt import loads
 from typing import Tuple, Union, List
 from pathlib import Path 
+import argparse
 
-from . import utils, block_stats
-from .raster_tools import extract_aoi_data_from_raster, allocate_population
+#from . import utils, block_stats
+import utils
+import block_stats
+from raster_tools import extract_aoi_data_from_raster, allocate_population
 
 '''
 TO-DO:
@@ -103,6 +106,7 @@ def make_summary(aoi_path: str,
                  buildings_dir: str,
                  blocks_dir: str,
                  gadm_dir: str,
+                 summary_out_path: str,
                  ):
     
     # (1) Allocate Landscan
@@ -128,4 +132,48 @@ def make_summary(aoi_path: str,
     aoi_block_stats = aoi_bldg_summary[block_cols].drop_duplicates()
     aoi_block_summary = aoi_blocks.merge(aoi_block_stats, how='left', on='block_id')
 
+    # (3) Save
+    summary_out_path = Path(summary_out_path)
+    fname = summary_out_path.stem
+    outdir = summary_out_path.parent
+    outdir.mkdir(exist_ok=True, parents=True)
+
+    aoi_block_summary.to_file(str(summary_out_path), driver='GeoJSON')
+    print("Saved to: {}".format(str(summary_out_path)))
+    
+    block_bldgs_out_path = outdir / (fname + "-bldgs.geojson")
+    aoi_bldg_summary.to_file(str(block_bldgs_out_path), driver='GeoJSON')
+    print("Saved to: {}".format(str(aoi_bldg_summary)))
+
     return aoi_block_summary, aoi_bldg_summary
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='Make block-level and building-level summary for Area of Interest')
+    parser.add_argument('--aoi_path', required=True, type=str, help='Path to geometry which defines AoI')
+    parser.add_argument('--landscan_path', required=True, type=str, help='Path to Landscan tif file')
+    parser.add_argument('--buildings_dir', required=True, type=str, help='Dir to buildings geomtries')
+    parser.add_argument('--blocks_dir', required=True, type=str, help='Dir to blocks geometries')
+    parser.add_argument('--gadm_dir', required=True, type=str, help='Dir to GAMD geometries')
+    parser.add_argument('--summary_out_path', required=True, type=str, help='Path to save block summary')
+
+    args = parser.parse_args()
+    make_summary(**vars(args))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -19,7 +19,8 @@ from tobler.area_weighted import area_tables, area_interpolate
 from tobler.util.util import _check_crs, _nan_check, _check_presence_of_crs
 import pandas as pd
 
-from . import utils
+import utils 
+#from . import utils
 
 # Roots
 _ROOT = Path(__file__).resolve().parent.parent

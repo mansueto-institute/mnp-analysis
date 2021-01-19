@@ -5,7 +5,8 @@ from shapely.wkt import loads
 from typing import Tuple, Union
 from pathlib import Path 
 
-from . import utils
+import utils
+#from . import utils
 
 '''
 FILE DESCRIPTION:
