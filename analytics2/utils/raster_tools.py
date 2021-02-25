@@ -13,9 +13,7 @@ import geopandas as gdf
 from typing import Union, List, Tuple 
 import affine 
 import numpy.ma as ma 
-from tobler import area_weighted 
-from tobler.area_weighted import area_tables, area_interpolate
-from tobler.area_weighted import area_tables, area_interpolate
+from tobler.area_weighted import _area_tables, area_interpolate
 from tobler.util.util import _check_crs, _nan_check, _check_presence_of_crs
 import pandas as pd
 
@@ -88,7 +86,10 @@ def raster_to_geodataframe(raster_data: np.ndarray,
                            window: rasterio.windows.Window,
                            raster_io: rasterio.io.DatasetReader,
                            ) -> gpd.GeoDataFrame:
-    
+    """
+    Takes in raster data as a numpy array and converts it to a geo df, then
+    writes that to file
+    """
     if raster_data.ndim == 3:
         assert raster_data.shape[0] == 1, "ERROR - can't handle multichannel yet"
         raster_data = raster_data[0]
@@ -168,9 +169,9 @@ def extract_aoi_data_from_raster(geometry_data: Union[str, gpd.GeoDataFrame],
 
 
 def fix_invalid_polygons(geom: Union[Polygon, MultiPolygon]) -> Polygon:
-    '''
+    """
     Fix self-intersection polygons
-    '''
+    """
     if geom.is_valid:
         return geom 
     else:
@@ -181,7 +182,9 @@ def allocate_population(buildings_gdf: gpd.GeoDataFrame,
                         population_gdf: gpd.GeoDataFrame,
                         pop_variable: str,
                         ) -> gpd.GeoDataFrame:
-    
+    """
+
+    """
     for k in ['index_right', 'index_left']:
         for df in [buildings_gdf, population_gdf]:
             if k in df.columns:

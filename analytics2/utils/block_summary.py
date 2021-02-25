@@ -19,8 +19,12 @@ TO-DO:
   - test on data on Midway
 '''
 
+
 def load_gadm_file(gadm_dir: str) -> gpd.GeoDataFrame:
-    
+    """
+    Loads in a GADM gep df from file, sorts the index and returns
+    just the index and geometry. 
+    """
     sort_fn = lambda s: -int(s.stem.split("_")[-1])
     gadm_dir = Path(gadm_dir)
     shp_files = [p for p in gadm_dir.iterdir() if p.suffix == '.shp']
@@ -31,6 +35,7 @@ def load_gadm_file(gadm_dir: str) -> gpd.GeoDataFrame:
     gdf.rename(columns={s: 'gadm'}, inplace=True)
     gdf = gdf[['gadm', 'geometry']]
     return gdf 
+
 
 def get_gadm_list(aoi_gdf: gpd.GeoDataFrame, 
                   gadm_dir: str,
@@ -48,6 +53,7 @@ def get_gadm_list(aoi_gdf: gpd.GeoDataFrame,
     gadm_inter = gadm_gdf.loc[gadm_gdf['i_aoi']==True][['gadm', 'geometry']]
     
     return list(gadm_inter['gadm'].values)
+
 
 def get_geoms_intersecting_aoi(aoi_gdf: gpd.GeoDataFrame,
                                target_geoms_dir: str,
@@ -100,7 +106,6 @@ def get_geoms_intersecting_aoi(aoi_gdf: gpd.GeoDataFrame,
     return aoi_selection
 
 
-
 def make_summary(aoi_path: str,
                  landscan_path: str,
                  buildings_dir: str,
@@ -108,7 +113,10 @@ def make_summary(aoi_path: str,
                  gadm_dir: str,
                  summary_out_path: str,
                  ):
-    
+    """
+    Creates a summary of the given area using its population (?), blocks,
+    and boundary lines. 
+    """
     # (1) Allocate Landscan
     aoi_path = Path(aoi_path)
     if aoi_path.suffix == '.csv':
