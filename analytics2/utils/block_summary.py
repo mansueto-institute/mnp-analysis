@@ -102,7 +102,6 @@ def get_geoms_intersecting_aoi(aoi_gdf: gpd.GeoDataFrame,
                 aoi_selection = gdf 
             else:
                 aoi_selection = aoi_selection.append(gdf)
-
     return aoi_selection
 
 
@@ -135,6 +134,8 @@ def make_summary(aoi_path: str,
 
     # (2) Now assemble the other data
     aoi_blocks = get_geoms_intersecting_aoi(aoi_gdf, blocks_dir, gadm_list)
+    if 'block_id' not in aoi_blocks.columns:
+        aoi_blocks['block_id'] = aoi_blocks.index.tolist()
     aoi_bldg_summary = block_stats.make_aoi_summary(bldg_pop_alloc, aoi_blocks)
     block_cols = [x for x in aoi_bldg_summary.columns if "block" in x]
     aoi_block_stats = aoi_bldg_summary[block_cols].drop_duplicates()
