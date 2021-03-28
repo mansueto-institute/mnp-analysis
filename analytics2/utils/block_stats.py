@@ -75,15 +75,14 @@ def add_block_id(bldg_pop: gpd.GeoDataFrame,
 #######################################
 
 def add_block_area(bldg_pop: gpd.GeoDataFrame,
-                   block: Union[gpd.GeoDataFrame, str],
+                   block: Optional[Union[gpd.GeoDataFrame, str]],
                    ) -> gpd.GeoDataFrame:
     """
     Calculates the area of each block and adds that to the bldg_pop geodf
     """    
     block = flex_load(block)
     block = block.to_crs("EPSG:3395")
-    block['block_area'] = block.area
-    block['block_area'] = block['block_area'] * 1e-6
+    block['block_area'] = block.area * 1e-6
     block = block.to_crs("EPSG:4326")
 
     if 'block_id' not in bldg_pop.columns:
@@ -95,7 +94,7 @@ def add_block_area(bldg_pop: gpd.GeoDataFrame,
 
 
 def add_block_bldg_count(bldg_pop: gpd.GeoDataFrame,
-                         block: Union[gpd.GeoDataFrame, str] = None,
+                         block: Optional[Union[gpd.GeoDataFrame, str]],
                          ) -> gpd.GeoDataFrame:
     """
     Calculates the number of buildings in a block and adds that to the bldg_pop geodf
@@ -111,7 +110,7 @@ def add_block_bldg_count(bldg_pop: gpd.GeoDataFrame,
 
 
 def add_block_bldg_area(bldg_pop: gpd.GeoDataFrame,
-                        block: Union[gpd.GeoDataFrame, str] = None,
+                        block: Optional[Union[gpd.GeoDataFrame, str]],
                         ) -> gpd.GeoDataFrame:
     """
     Calculates the number of buildings in a block and adds that to the bldg_pop geodf
@@ -130,8 +129,9 @@ def add_block_bldg_area(bldg_pop: gpd.GeoDataFrame,
     bldg_pop.drop(columns=["bldg_area"], inplace=True)
     return bldg_pop
 
+
 def add_block_bldg_area_density(bldg_pop: gpd.GeoDataFrame,
-                                block: Union[gpd.GeoDataFrame, str] = None,
+                                block: Optional[Union[gpd.GeoDataFrame, str]],
                                 ) -> gpd.GeoDataFrame:
     """
     Calculates the ratio of building density to block area and adds that to the bldg_pop geodf
@@ -147,7 +147,7 @@ def add_block_bldg_area_density(bldg_pop: gpd.GeoDataFrame,
 
 
 def add_block_bldg_count_density(bldg_pop: gpd.GeoDataFrame,
-                                 block: Union[gpd.GeoDataFrame, str] = None,
+                                 block: Optional[Union[gpd.GeoDataFrame, str]],
                                  ) -> gpd.GeoDataFrame:
     """
     Calculates the ratio of number of buildings in a block to the block's area and adds that
@@ -164,7 +164,7 @@ def add_block_bldg_count_density(bldg_pop: gpd.GeoDataFrame,
 
 
 def add_block_pop(bldg_pop: gpd.GeoDataFrame,
-                  block: Union[gpd.GeoDataFrame, str] = None,
+                  block: Optional[Union[gpd.GeoDataFrame, str]],
                   ) -> gpd.GeoDataFrame:
     """
     Calculates the population for the block and adds that to the bldg_pop geodf
@@ -180,7 +180,7 @@ def add_block_pop(bldg_pop: gpd.GeoDataFrame,
 
 
 def add_block_pop_density(bldg_pop: gpd.GeoDataFrame,
-                          block: Union[gpd.GeoDataFrame, str] = None,
+                          block: Optional[Union[gpd.GeoDataFrame, str]],
                           ) -> gpd.GeoDataFrame:
     """
     Calculates the ratio of block population to block area and adds that to the bldg_pop geodf
@@ -201,8 +201,8 @@ def add_block_pop_density(bldg_pop: gpd.GeoDataFrame,
 
 def add_block_gini(bldg_pop: gpd.GeoDataFrame,
                    values_col: str,
-                   block: Union[gpd.GeoDataFrame, str] = None,
-                   weights: libpysal.weights.weights.W = None
+                   block: Optional[Union[gpd.GeoDataFrame, str]],
+                   weights: Optional[libpysal.weights.weights.W]
                    ) -> gpd.GeoDataFrame:
     """
     Calculates the gini coefficient for the passed in values_col based on the passed in gpd.GeoDataFrame.
@@ -224,7 +224,7 @@ def add_block_gini(bldg_pop: gpd.GeoDataFrame,
 
 
 def add_block_rectangularity(bldg_pop: gpd.GeoDataFrame,
-                             block: Union[gpd.GeoDataFrame, str] = None,
+                             block: Optional[Union[gpd.GeoDataFrame, str]],
                              ) -> gpd.GeoDataFrame:
     """
     Adds rectangularity for each block in the data frame and adds that to the bldg_pop geodf.
@@ -250,6 +250,9 @@ def add_building_adjacency(bldg_pop: gpd.GeoDataFrame,
     """
     Calculates the building agency, roughly a ratio of number of buildings to number of "built-up patches".
     The "spatial_weights_higher" is created by defining every building in the same block to be connected to one another.
+
+    The intention is to figure out whether the block is composed of adjoining buildings or whether it's primarily freestanding
+    buildings. 
     Defined here: https://www-sciencedirect-com.proxy.uchicago.edu/science/article/pii/S0169204617301275?via%3Dihub
     Documentation here: http://docs.momepy.org/en/stable/generated/momepy.BuildingAdjacency.html#momepy.BuildingAdjacency
     """
