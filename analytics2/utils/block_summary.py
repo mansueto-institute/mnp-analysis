@@ -5,6 +5,7 @@ from shapely.wkt import loads
 from typing import Tuple, Union, List
 from pathlib import Path 
 import argparse
+from pygeos import GEOSException
 
 #from . import utils, block_stats
 import utils
@@ -96,7 +97,11 @@ def get_geoms_intersecting_aoi(aoi_gdf: gpd.GeoDataFrame,
             gdf = gpd.read_file(str(geom_path))
         else:
             gdf = utils.load_csv_to_geo(str(geom_path))
-        gdf = gdf[gdf['geometry'].intersects(aoi_geom)]
+        try:
+            gdf = gdf[gdf['geometry'].intersects(aoi_geom)]
+        except GEOSException:
+            gdf.geometry = gdf.geometry.buffer(0)
+            gdf = gdf[gdf['geometry'].intersects(aoi_geom)]
         if gdf.shape[0] > 0:
             if aoi_selection is None:
                 aoi_selection = gdf 

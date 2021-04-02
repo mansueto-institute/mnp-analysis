@@ -254,8 +254,8 @@ def make_aoi_summary(bldg_pop_data: Union[str, gpd.GeoDataFrame],
     block = flex_load(block_data)
     if 'block_id' not in bldg_pop.columns:
         bldg_pop = add_block_id(bldg_pop, block)
-    bldg_pop = add_block_gini(bldg_pop, 'bldg_pop')
-    bldg_pop = add_building_adjacency(bldg_pop)
+    # bldg_pop = add_block_gini(bldg_pop, 'bldg_pop')
+    # bldg_pop = add_building_adjacency(bldg_pop)
     bldg_pop = add_block_area(bldg_pop, block)
     bldg_pop = add_block_rectangularity(bldg_pop, block)
     bldg_pop = add_block_bldg_count(bldg_pop)
