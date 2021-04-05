@@ -6,6 +6,7 @@ from typing import Tuple, Union, List
 from pathlib import Path 
 import argparse
 from pygeos import GEOSException
+import time
 
 #from . import utils, block_stats
 import utils
@@ -163,7 +164,7 @@ def make_summary(aoi_path: str,
 
 
 if __name__ == "__main__":
-
+    t0 = time.time()
     parser = argparse.ArgumentParser(description='Make block-level and building-level summary for Area of Interest')
     parser.add_argument('--aoi_path', required=True, type=str, help='Path to geometry which defines AoI')
     parser.add_argument('--landscan_path', required=True, type=str, help='Path to Landscan tif file')
@@ -174,20 +175,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     make_summary(**vars(args))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    t1 = time.time()
+    print(f"block summary took {t1-t0}")
