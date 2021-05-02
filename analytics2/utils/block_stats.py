@@ -207,7 +207,11 @@ def add_block_rectangularity(bldg_pop: gpd.GeoDataFrame,
     if 'block_area' not in bldg_pop.columns:
         bldg_pop = add_block_area(bldg_pop, block)
 
-    bldg_pop['rectangularity'] = Rectangularity(bldg_pop, areas='block_area').series
+    bldg_pop_good_areas = bldg_pop[~bldg_pop['block_area'].isnull()]
+    bldg_pop_good_areas = bldg_pop[bldg_pop['block_area'] > 0]
+
+    bldg_pop_good_areas['rectangularity'] = Rectangularity(bldg_pop_good_areas, areas='block_area').series
+    bldg_pop = bldg_pop.merge(bldg_pop_good_areas[['rectangularity']])
 
     return bldg_pop
 
@@ -254,9 +258,9 @@ def make_aoi_summary(bldg_pop_data: Union[str, gpd.GeoDataFrame],
     block = flex_load(block_data)
     if 'block_id' not in bldg_pop.columns:
         bldg_pop = add_block_id(bldg_pop, block)
+    bldg_pop = add_block_area(bldg_pop, block)
     bldg_pop = add_block_gini(bldg_pop, 'bldg_pop')
     bldg_pop = add_building_adjacency(bldg_pop)
-    bldg_pop = add_block_area(bldg_pop, block)
     bldg_pop = add_block_rectangularity(bldg_pop, block)
     bldg_pop = add_block_bldg_count(bldg_pop)
     bldg_pop = add_block_bldg_area(bldg_pop, block)
