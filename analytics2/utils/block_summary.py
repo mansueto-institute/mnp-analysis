@@ -5,6 +5,8 @@ from shapely.wkt import loads
 from typing import Tuple, Union, List
 from pathlib import Path 
 import argparse
+from pygeos import GEOSException
+import time
 
 #from . import utils, block_stats
 import utils
@@ -96,13 +98,16 @@ def get_geoms_intersecting_aoi(aoi_gdf: gpd.GeoDataFrame,
             gdf = gpd.read_file(str(geom_path))
         else:
             gdf = utils.load_csv_to_geo(str(geom_path))
-        gdf = gdf[gdf['geometry'].intersects(aoi_geom)]
+        try:
+            gdf = gdf[gdf['geometry'].intersects(aoi_geom)]
+        except GEOSException:
+            gdf.geometry = gdf.geometry.buffer(0)
+            gdf = gdf[gdf['geometry'].intersects(aoi_geom)]
         if gdf.shape[0] > 0:
             if aoi_selection is None:
                 aoi_selection = gdf 
             else:
                 aoi_selection = aoi_selection.append(gdf)
-
     return aoi_selection
 
 
@@ -135,6 +140,8 @@ def make_summary(aoi_path: str,
 
     # (2) Now assemble the other data
     aoi_blocks = get_geoms_intersecting_aoi(aoi_gdf, blocks_dir, gadm_list)
+    if 'block_id' not in aoi_blocks.columns:
+        aoi_blocks['block_id'] = aoi_blocks.index.tolist()
     aoi_bldg_summary = block_stats.make_aoi_summary(bldg_pop_alloc, aoi_blocks)
     block_cols = [x for x in aoi_bldg_summary.columns if "block" in x]
     aoi_block_stats = aoi_bldg_summary[block_cols].drop_duplicates()
@@ -157,7 +164,7 @@ def make_summary(aoi_path: str,
 
 
 if __name__ == "__main__":
-
+    t0 = time.time()
     parser = argparse.ArgumentParser(description='Make block-level and building-level summary for Area of Interest')
     parser.add_argument('--aoi_path', required=True, type=str, help='Path to geometry which defines AoI')
     parser.add_argument('--landscan_path', required=True, type=str, help='Path to Landscan tif file')
@@ -168,20 +175,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     make_summary(**vars(args))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    t1 = time.time()
+    print(f"block summary took {t1-t0}")
