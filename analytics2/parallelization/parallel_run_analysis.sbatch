@@ -51,5 +51,8 @@ echo ${completed_gadms[@]} ${all_gadms[@]} | tr ' ' '\n' | sort | uniq -u | $par
 #find $search_path -type f -name '*.csv' -print | xargs -n 1 basename | $parallel "$srun ./run_analysis.sbatch $base_path {}"
 
 
-
-
+### when completed, print out the empty files corresponding to missing building files
+# line 1 finds all empty files, removes path names, saves to file
+# line 2 removes the filename from this list, couldn't fix it in L1
+find . -name '*summary.geojson' -maxdepth 1 -size 0c | xargs -n 1 basename > 'missing_blocks.txt'
+grep -v 'missing_blocks.txt' missing_blocks.txt > tmpfile && mv tmpfile missing_blocks.txt 
