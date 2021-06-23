@@ -79,21 +79,22 @@ def get_geoms_intersecting_aoi(aoi_gdf: gpd.GeoDataFrame,
     else:
         # Do flexible matching of gadm with files in directory
 
-        ### IndexError ###
-        parent_dir = possible_files[0].parent # parent directory
-
-        # create full gadm filepaths
-        gadm_list = [str(parent_dir) + 'buildings_' + x + '.geojson' for x in gadm_list]
-        gadm_list = [Path(x) for x in gadm_list]
+        ### IndexError, Sanity Check ###
+        # find filenames
+        possible_files2 = [str(x.stem) for x in possible_files]
+        possible_files2 = [x.replace('buildings_', '') for x in possible_files2]
+        possible_files_names = [x.replace('blocks_', '') for x in possible_files2]
+        gadm0 = next(filter(lambda fn: fn in possible_files_names, gadm_list), None)
+        idx0 = possible_files_names.index(gadm0)
         target_files = []
 
+        f_name = possible_files[idx0].name
         for gadm in gadm_list:
-            # make sure building files exist
-            try:
-                target_files.append(gadm)
-            except:
-                continue
+            gadm_fname = f_name.replace(gadm0, gadm)
+            gadm_path = target_geoms_dir / gadm_fname
+            target_files.append(gadm_path)
         ### --- ###
+
 
     aoi_selection = None
     # Now assemble the geometries
@@ -146,7 +147,7 @@ def make_summary(aoi_path: str,
     aoi_ls_bldgs = get_geoms_intersecting_aoi(aoi_ls, buildings_dir, gadm_list)
 
     ### fiona error ###
-    if aoi_ls_bldgs == None:
+    if aoi_ls_bldgs is None:
         summary_out_path = Path(summary_out_path)
         fname = summary_out_path.stem
         outdir = summary_out_path.parent
