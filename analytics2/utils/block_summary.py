@@ -7,6 +7,7 @@ from pathlib import Path
 import argparse
 from pygeos import GEOSException
 import time
+import os
 
 #from . import utils, block_stats
 import utils
@@ -72,30 +73,41 @@ def get_geoms_intersecting_aoi(aoi_gdf: gpd.GeoDataFrame,
     aoi_geom = aoi_gdf.unary_union
     target_geoms_dir = Path(target_geoms_dir)
     possible_files = list(target_geoms_dir.iterdir())
+
     if gadm_list is None:
         target_files = possible_files
     else:
         # Do flexible matching of gadm with files in directory
-        gadm0 = gadm_list[0]
-        i = 0
-        f_name = possible_files[i].name 
-        while gadm0 not in f_name:
-            i += 1
-            f_name = possible_files[i].name 
+
+        ### IndexError, Sanity Check ###
+        # find filenames
+        possible_files2 = [str(x.stem) for x in possible_files]
+        possible_files2 = [x.replace('buildings_', '') for x in possible_files2]
+        possible_files_names = [x.replace('blocks_', '') for x in possible_files2]
+        gadm0 = next(filter(lambda fn: fn in possible_files_names, gadm_list), None)
+        idx0 = possible_files_names.index(gadm0)
         target_files = []
 
-        # We have discovered the relationship btwn gadm and filename
+        f_name = possible_files[idx0].name
         for gadm in gadm_list:
             gadm_fname = f_name.replace(gadm0, gadm)
             gadm_path = target_geoms_dir / gadm_fname
             target_files.append(gadm_path)
-            #assert gadm_path.is_file(), "ERROR: matched {} to {} but file does not exist".format(gadm, gadm_path)
+        ### --- ###
+
 
     aoi_selection = None
     # Now assemble the geometries
     for i, geom_path in enumerate(target_files):
         if geom_path.suffix == ".geojson":
-            gdf = gpd.read_file(str(geom_path))
+
+            ### fiona error ###
+            try:
+                gdf = gpd.read_file(str(geom_path))
+            except:
+                continue
+            ### --- ###
+
         else:
             gdf = utils.load_csv_to_geo(str(geom_path))
         try:
@@ -133,6 +145,24 @@ def make_summary(aoi_path: str,
 
     _, aoi_ls = extract_aoi_data_from_raster(aoi_gdf, landscan_path, save_geojson=False, save_tif=False)
     aoi_ls_bldgs = get_geoms_intersecting_aoi(aoi_ls, buildings_dir, gadm_list)
+
+    ### fiona error ###
+    if aoi_ls_bldgs is None:
+        summary_out_path = Path(summary_out_path)
+        fname = summary_out_path.stem
+        outdir = summary_out_path.parent
+        outdir.mkdir(exist_ok=True, parents=True)
+
+        # create empty files
+        with open(fname + ".geojson", 'w') as fp:
+            pass
+        with open(fname + "-bldgs.geojson", 'w') as fp:
+            pass
+
+        print("No building file: {}".format(fname))
+
+        return None
+    ### --- ###
 
     bldg_pop_alloc = allocate_population(aoi_ls_bldgs, aoi_ls, 'pop')
 
