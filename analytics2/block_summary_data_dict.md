@@ -10,9 +10,9 @@
 | waterway | Type of waterway, if any. Should be None. | str |  |
 | gadm_code | Most local GADM the building and block belong to | str |  |
 | bldg_id | ID # of the building within the block | str |  |
-| bldg_pop | Estimated population count of the building | int | People |
+| bldg_pop | Estimated population count of the building | float | People |
 | block_area | The area of the block that the building belongs to | float | km^2 |
-| block_bldg_count | The number of buildings in the block | int | Building |
+| block_bldg_count | The number of buildings in the block | float | Building |
 | block_bldg_area  | The summed areas of the block's buildings | float | km^2 |
 | block_bldg_area_density | The ratio of block_bldg_area to block_area | float | |
 | block_bldg_count_density | The ratio of block_bldg_count to block_area | float| Buildings / km^2 | 
